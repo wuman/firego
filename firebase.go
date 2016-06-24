@@ -32,6 +32,7 @@ type ErrTimeout struct {
 
 // query parameter constants
 const (
+	accessTokenParam  = "access_token"
 	authParam         = "auth"
 	shallowParam      = "shallow"
 	formatParam       = "format"
@@ -93,6 +94,16 @@ func (fb *Firebase) Auth(token string) {
 // Unauth removes the current token being used to authenticate to Firebase.
 func (fb *Firebase) Unauth() {
 	fb.params.Del(authParam)
+}
+
+// AccessToken sets the access token of a service account to authenticate to Firebase.
+func (fb *Firebase) AccessToken(accessToken string) {
+	fb.params.Set(accessTokenParam, accessToken)
+}
+
+// UnAccessToken removes the current access token being used to authenticate to Firebase.
+func (fb *Firebase) UnAccessToken() {
+	fb.params.Del(accessTokenParam)
 }
 
 // Push creates a reference to an auto-generated child location.

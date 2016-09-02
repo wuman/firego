@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
 // TimeoutDuration is the length of time any request will have to establish
@@ -47,9 +49,10 @@ const (
 
 // Firebase represents a location in the cloud.
 type Firebase struct {
-	url    string
-	params _url.Values
-	client *http.Client
+	url      string
+	params   _url.Values
+	client   *http.Client
+	tokenSrc oauth2.TokenSource
 
 	watchMtx     sync.Mutex
 	watching     bool
@@ -86,6 +89,12 @@ func New(url string, client *http.Client) *Firebase {
 	}
 }
 
+// AccessToken sets the TokenSource, which is typically obtained via calling
+// google.DefaultTokenSource(ctx, scope...).
+func (fb *Firebase) AccessToken(tokenSource oauth2.TokenSource) {
+	fb.tokenSrc = tokenSource
+}
+
 // Auth sets the custom Firebase token used to authenticate to Firebase.
 func (fb *Firebase) Auth(token string) {
 	fb.params.Set(authParam, token)
@@ -94,16 +103,6 @@ func (fb *Firebase) Auth(token string) {
 // Unauth removes the current token being used to authenticate to Firebase.
 func (fb *Firebase) Unauth() {
 	fb.params.Del(authParam)
-}
-
-// AccessToken sets the access token of a service account to authenticate to Firebase.
-func (fb *Firebase) AccessToken(accessToken string) {
-	fb.params.Set(accessTokenParam, accessToken)
-}
-
-// UnAccessToken removes the current access token being used to authenticate to Firebase.
-func (fb *Firebase) UnAccessToken() {
-	fb.params.Del(accessTokenParam)
 }
 
 // Push creates a reference to an auto-generated child location.
@@ -169,8 +168,15 @@ func (fb *Firebase) Value(v interface{}) error {
 func (fb *Firebase) String() string {
 	path := fb.url + "/.json"
 
-	if len(fb.params) > 0 {
-		path += "?" + fb.params.Encode()
+	paramsCopy, _ := url.ParseQuery(fb.params.Encode())
+	if fb.tokenSrc != nil {
+		if token, err := fb.tokenSrc.Token(); err == nil && token != nil {
+			paramsCopy.Add(accessTokenParam, token.AccessToken)
+		}
+	}
+
+	if len(paramsCopy) > 0 {
+		path += "?" + paramsCopy.Encode()
 	}
 	return path
 }

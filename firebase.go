@@ -199,7 +199,7 @@ func New(url string, client *http.Client) *Firebase {
 func (fb *Firebase) String() string {
 	path := fb.url + "/.json"
 
-	paramsCopy, _ := url.ParseQuery(fb.params.Encode())
+	paramsCopy, _ := _url.ParseQuery(fb.params.Encode())
 	if fb.tokenSrc != nil {
 		if token, err := fb.tokenSrc.Token(); err == nil && token != nil {
 			paramsCopy.Add(accessTokenParam, token.AccessToken)
@@ -226,6 +226,7 @@ func (fb *Firebase) copy() *Firebase {
 		params:       _url.Values{},
 		client:       fb.client,
 		stopWatching: make(chan struct{}),
+		tokenSrc:     fb.tokenSrc,
 	}
 
 	// making sure to manually copy the map items into a new

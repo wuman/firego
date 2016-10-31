@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
 
@@ -107,11 +108,36 @@ func (fb *Firebase) Unauth() {
 
 // Push creates a reference to an auto-generated child location.
 func (fb *Firebase) Push(v interface{}) (*Firebase, error) {
+	return fb.PushWithContext(nil, v)
+}
+
+// Remove the Firebase reference from the cloud.
+func (fb *Firebase) Remove() error {
+	return fb.RemoveWithContext(nil)
+}
+
+// Set the value of the Firebase reference.
+func (fb *Firebase) Set(v interface{}) error {
+	return fb.SetWithContext(nil, v)
+}
+
+// Update the specific child with the given value.
+func (fb *Firebase) Update(v interface{}) error {
+	return fb.UpdateWithContext(nil, v)
+}
+
+// Value gets the value of the Firebase reference.
+func (fb *Firebase) Value(v interface{}) error {
+	return fb.ValueWithContext(nil, v)
+}
+
+// PushWithContext creates a reference to an auto-generated child location with context.
+func (fb *Firebase) PushWithContext(ctx context.Context, v interface{}) (*Firebase, error) {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
-	bytes, err = fb.doRequest("POST", bytes)
+	bytes, err = fb.doRequest(ctx, "POST", bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -125,38 +151,38 @@ func (fb *Firebase) Push(v interface{}) (*Firebase, error) {
 	}, err
 }
 
-// Remove the Firebase reference from the cloud.
-func (fb *Firebase) Remove() error {
-	_, err := fb.doRequest("DELETE", nil)
+// RemoveWithContext the Firebase reference from the cloud with context.
+func (fb *Firebase) RemoveWithContext(ctx context.Context) error {
+	_, err := fb.doRequest(ctx, "DELETE", nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// Set the value of the Firebase reference.
-func (fb *Firebase) Set(v interface{}) error {
+// SetWithContext the value of the Firebase reference with context.
+func (fb *Firebase) SetWithContext(ctx context.Context, v interface{}) error {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = fb.doRequest("PUT", bytes)
+	_, err = fb.doRequest(ctx, "PUT", bytes)
 	return err
 }
 
-// Update the specific child with the given value.
-func (fb *Firebase) Update(v interface{}) error {
+// UpdateWithContext the specific child with the given value with context.
+func (fb *Firebase) UpdateWithContext(ctx context.Context, v interface{}) error {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = fb.doRequest("PATCH", bytes)
+	_, err = fb.doRequest(ctx, "PATCH", bytes)
 	return err
 }
 
-// Value gets the value of the Firebase reference.
-func (fb *Firebase) Value(v interface{}) error {
-	bytes, err := fb.doRequest("GET", nil)
+// ValueWithContext gets the value of the Firebase reference with context.
+func (fb *Firebase) ValueWithContext(ctx context.Context, v interface{}) error {
+	bytes, err := fb.doRequest(ctx, "GET", nil)
 	if err != nil {
 		return err
 	}
@@ -238,10 +264,13 @@ func redirectPreserveHeaders(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func (fb *Firebase) doRequest(method string, body []byte) ([]byte, error) {
+func (fb *Firebase) doRequest(ctx context.Context, method string, body []byte) ([]byte, error) {
 	req, err := http.NewRequest(method, fb.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
 	}
 
 	resp, err := fb.client.Do(req)

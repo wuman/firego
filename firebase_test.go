@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zabawaba99/firetest"
+	"golang.org/x/net/context"
 )
 
 const URL = "https://somefirebaseapp.firebaseIO.com"
@@ -112,6 +113,22 @@ func TestPush(t *testing.T) {
 	assert.Equal(t, payload, v)
 }
 
+func TestPushWithContext(t *testing.T) {
+	t.Parallel()
+	var (
+		payload = map[string]interface{}{"foo": "bar"}
+		server  = firetest.New()
+	)
+	server.Start()
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fb := New(server.URL, nil)
+	_, err := fb.PushWithContext(ctx, payload)
+	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
+}
+
 func TestRemove(t *testing.T) {
 	t.Parallel()
 	server := firetest.New()
@@ -126,6 +143,24 @@ func TestRemove(t *testing.T) {
 
 	v := server.Get("")
 	assert.Nil(t, v)
+}
+
+func TestRemoveWithContext(t *testing.T) {
+	t.Parallel()
+	server := firetest.New()
+	server.Start()
+	defer server.Close()
+
+	server.Set("", true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fb := New(server.URL, nil)
+	err := fb.RemoveWithContext(ctx)
+	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
+
+	v := server.Get("")
+	assert.Equal(t, true, v)
 }
 
 func TestSet(t *testing.T) {
@@ -145,6 +180,25 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, payload, v)
 }
 
+func TestSetWithContext(t *testing.T) {
+	t.Parallel()
+	var (
+		payload = map[string]interface{}{"foo": "bar"}
+		server  = firetest.New()
+	)
+	server.Start()
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fb := New(server.URL, nil)
+	err := fb.SetWithContext(ctx, payload)
+	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
+
+	v := server.Get("")
+	assert.Nil(t, v)
+}
+
 func TestUpdate(t *testing.T) {
 	t.Parallel()
 	var (
@@ -160,6 +214,25 @@ func TestUpdate(t *testing.T) {
 
 	v := server.Get("")
 	assert.Equal(t, payload, v)
+}
+
+func TestUpdateWithContext(t *testing.T) {
+	t.Parallel()
+	var (
+		payload = map[string]interface{}{"foo": "bar"}
+		server  = firetest.New()
+	)
+	server.Start()
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fb := New(server.URL, nil)
+	err := fb.UpdateWithContext(ctx, payload)
+	assert.EqualError(t, err, "net/http: request canceled while waiting for connection")
+
+	v := server.Get("")
+	assert.Nil(t, v)
 }
 
 func TestValue(t *testing.T) {
@@ -179,6 +252,26 @@ func TestValue(t *testing.T) {
 	err := fb.Value(&v)
 	assert.NoError(t, err)
 	assert.Equal(t, response, v)
+}
+
+func TestValueWithContext(t *testing.T) {
+	t.Parallel()
+	var (
+		response = map[string]interface{}{"foo": "bar"}
+		server   = firetest.New()
+	)
+	server.Start()
+	defer server.Close()
+
+	fb := New(server.URL, nil)
+
+	server.Set("", response)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var v map[string]interface{}
+	err := fb.ValueWithContext(ctx, &v)
+	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
 }
 
 func TestChild(t *testing.T) {

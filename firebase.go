@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
 // TimeoutDuration is the length of time any request will have to establish
@@ -32,6 +34,7 @@ type ErrTimeout struct {
 
 // query parameter constants
 const (
+	accessTokenParam  = "access_token"
 	authParam         = "auth"
 	shallowParam      = "shallow"
 	formatParam       = "format"
@@ -46,9 +49,10 @@ const (
 
 // Firebase represents a location in the cloud.
 type Firebase struct {
-	url    string
-	params _url.Values
-	client *http.Client
+	url      string
+	params   _url.Values
+	client   *http.Client
+	tokenSrc oauth2.TokenSource
 
 	watchMtx     sync.Mutex
 	watching     bool
@@ -83,6 +87,12 @@ func New(url string, client *http.Client) *Firebase {
 		client:       client,
 		stopWatching: make(chan struct{}),
 	}
+}
+
+// AccessToken sets the TokenSource, which is typically obtained via calling
+// google.DefaultTokenSource(ctx, scope...).
+func (fb *Firebase) AccessToken(tokenSource oauth2.TokenSource) {
+	fb.tokenSrc = tokenSource
 }
 
 // Auth sets the custom Firebase token used to authenticate to Firebase.
@@ -158,8 +168,15 @@ func (fb *Firebase) Value(v interface{}) error {
 func (fb *Firebase) String() string {
 	path := fb.url + "/.json"
 
-	if len(fb.params) > 0 {
-		path += "?" + fb.params.Encode()
+	paramsCopy, _ := _url.ParseQuery(fb.params.Encode())
+	if fb.tokenSrc != nil {
+		if token, err := fb.tokenSrc.Token(); err == nil && token != nil {
+			paramsCopy.Add(accessTokenParam, token.AccessToken)
+		}
+	}
+
+	if len(paramsCopy) > 0 {
+		path += "?" + paramsCopy.Encode()
 	}
 	return path
 }
@@ -172,12 +189,20 @@ func (fb *Firebase) Child(child string) *Firebase {
 	return c
 }
 
+// WithContext add a context for firebase network request, the context is NOT
+// propagated while forking a child firebase node.
+func (fb *Firebase) WithContext(ctx context.Context) *Firebase {
+	fb.ctx = ctx
+	return fb
+}
+
 func (fb *Firebase) copy() *Firebase {
 	c := &Firebase{
 		url:          fb.url,
 		params:       _url.Values{},
 		client:       fb.client,
 		stopWatching: make(chan struct{}),
+		tokenSrc:     fb.tokenSrc,
 	}
 
 	// making sure to manually copy the map items into a new
@@ -224,6 +249,9 @@ func (fb *Firebase) doRequest(method string, body []byte) ([]byte, error) {
 	req, err := http.NewRequest(method, fb.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
+	}
+	if fb.ctx != nil {
+		req = req.WithContext(fb.ctx)
 	}
 
 	resp, err := fb.client.Do(req)

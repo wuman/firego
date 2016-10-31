@@ -113,7 +113,7 @@ func TestPush(t *testing.T) {
 	assert.Equal(t, payload, v)
 }
 
-func TestPushWithContext(t *testing.T) {
+func TestPushC(t *testing.T) {
 	t.Parallel()
 	var (
 		payload = map[string]interface{}{"foo": "bar"}
@@ -125,7 +125,7 @@ func TestPushWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	fb := New(server.URL, nil)
-	_, err := fb.PushWithContext(ctx, payload)
+	_, err := fb.PushC(ctx, payload)
 	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
 }
 
@@ -145,7 +145,7 @@ func TestRemove(t *testing.T) {
 	assert.Nil(t, v)
 }
 
-func TestRemoveWithContext(t *testing.T) {
+func TestRemoveC(t *testing.T) {
 	t.Parallel()
 	server := firetest.New()
 	server.Start()
@@ -156,7 +156,7 @@ func TestRemoveWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	fb := New(server.URL, nil)
-	err := fb.RemoveWithContext(ctx)
+	err := fb.RemoveC(ctx)
 	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
 
 	v := server.Get("")
@@ -180,7 +180,7 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, payload, v)
 }
 
-func TestSetWithContext(t *testing.T) {
+func TestSetC(t *testing.T) {
 	t.Parallel()
 	var (
 		payload = map[string]interface{}{"foo": "bar"}
@@ -192,7 +192,7 @@ func TestSetWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	fb := New(server.URL, nil)
-	err := fb.SetWithContext(ctx, payload)
+	err := fb.SetC(ctx, payload)
 	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
 
 	v := server.Get("")
@@ -216,7 +216,7 @@ func TestUpdate(t *testing.T) {
 	assert.Equal(t, payload, v)
 }
 
-func TestUpdateWithContext(t *testing.T) {
+func TestUpdateC(t *testing.T) {
 	t.Parallel()
 	var (
 		payload = map[string]interface{}{"foo": "bar"}
@@ -228,7 +228,7 @@ func TestUpdateWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	fb := New(server.URL, nil)
-	err := fb.UpdateWithContext(ctx, payload)
+	err := fb.UpdateC(ctx, payload)
 	assert.EqualError(t, err, "net/http: request canceled while waiting for connection")
 
 	v := server.Get("")
@@ -254,7 +254,7 @@ func TestValue(t *testing.T) {
 	assert.Equal(t, response, v)
 }
 
-func TestValueWithContext(t *testing.T) {
+func TestValueC(t *testing.T) {
 	t.Parallel()
 	var (
 		response = map[string]interface{}{"foo": "bar"}
@@ -270,7 +270,7 @@ func TestValueWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var v map[string]interface{}
-	err := fb.ValueWithContext(ctx, &v)
+	err := fb.ValueC(ctx, &v)
 	assert.True(t, strings.Contains(err.Error(), "net/http: request canceled while waiting for connection"))
 }
 

@@ -108,31 +108,31 @@ func (fb *Firebase) Unauth() {
 
 // Push creates a reference to an auto-generated child location.
 func (fb *Firebase) Push(v interface{}) (*Firebase, error) {
-	return fb.PushWithContext(nil, v)
+	return fb.PushC(nil, v)
 }
 
 // Remove the Firebase reference from the cloud.
 func (fb *Firebase) Remove() error {
-	return fb.RemoveWithContext(nil)
+	return fb.RemoveC(nil)
 }
 
 // Set the value of the Firebase reference.
 func (fb *Firebase) Set(v interface{}) error {
-	return fb.SetWithContext(nil, v)
+	return fb.SetC(nil, v)
 }
 
 // Update the specific child with the given value.
 func (fb *Firebase) Update(v interface{}) error {
-	return fb.UpdateWithContext(nil, v)
+	return fb.UpdateC(nil, v)
 }
 
 // Value gets the value of the Firebase reference.
 func (fb *Firebase) Value(v interface{}) error {
-	return fb.ValueWithContext(nil, v)
+	return fb.ValueC(nil, v)
 }
 
-// PushWithContext creates a reference to an auto-generated child location with context.
-func (fb *Firebase) PushWithContext(ctx context.Context, v interface{}) (*Firebase, error) {
+// PushC creates a reference to an auto-generated child location with context.
+func (fb *Firebase) PushC(ctx context.Context, v interface{}) (*Firebase, error) {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
@@ -151,8 +151,8 @@ func (fb *Firebase) PushWithContext(ctx context.Context, v interface{}) (*Fireba
 	}, err
 }
 
-// RemoveWithContext the Firebase reference from the cloud with context.
-func (fb *Firebase) RemoveWithContext(ctx context.Context) error {
+// RemoveC the Firebase reference from the cloud with context.
+func (fb *Firebase) RemoveC(ctx context.Context) error {
 	_, err := fb.doRequest(ctx, "DELETE", nil)
 	if err != nil {
 		return err
@@ -160,8 +160,8 @@ func (fb *Firebase) RemoveWithContext(ctx context.Context) error {
 	return nil
 }
 
-// SetWithContext the value of the Firebase reference with context.
-func (fb *Firebase) SetWithContext(ctx context.Context, v interface{}) error {
+// SetC the value of the Firebase reference with context.
+func (fb *Firebase) SetC(ctx context.Context, v interface{}) error {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -170,8 +170,8 @@ func (fb *Firebase) SetWithContext(ctx context.Context, v interface{}) error {
 	return err
 }
 
-// UpdateWithContext the specific child with the given value with context.
-func (fb *Firebase) UpdateWithContext(ctx context.Context, v interface{}) error {
+// UpdateC the specific child with the given value with context.
+func (fb *Firebase) UpdateC(ctx context.Context, v interface{}) error {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -180,8 +180,8 @@ func (fb *Firebase) UpdateWithContext(ctx context.Context, v interface{}) error 
 	return err
 }
 
-// ValueWithContext gets the value of the Firebase reference with context.
-func (fb *Firebase) ValueWithContext(ctx context.Context, v interface{}) error {
+// ValueC gets the value of the Firebase reference with context.
+func (fb *Firebase) ValueC(ctx context.Context, v interface{}) error {
 	bytes, err := fb.doRequest(ctx, "GET", nil)
 	if err != nil {
 		return err

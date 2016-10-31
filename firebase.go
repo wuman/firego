@@ -189,6 +189,13 @@ func (fb *Firebase) Child(child string) *Firebase {
 	return c
 }
 
+// WithContext add a context for firebase network request, the context is NOT
+// propagated while forking a child firebase node.
+func (fb *Firebase) WithContext(ctx context.Context) *Firebase {
+	fb.ctx = ctx
+	return fb
+}
+
 func (fb *Firebase) copy() *Firebase {
 	c := &Firebase{
 		url:          fb.url,
@@ -242,6 +249,9 @@ func (fb *Firebase) doRequest(method string, body []byte) ([]byte, error) {
 	req, err := http.NewRequest(method, fb.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
+	}
+	if fb.ctx != nil {
+		req = req.WithContext(fb.ctx)
 	}
 
 	resp, err := fb.client.Do(req)

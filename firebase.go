@@ -25,6 +25,9 @@ import (
 // an ErrTimeout error.
 var TimeoutDuration = 30 * time.Second
 
+// ErrValueMissing indicates the firebase node is not found used in MustValue.
+var ErrValueMissing = errors.New("firebase node missing")
+
 var defaultRedirectLimit = 30
 
 // ErrTimeout is an error type is that is returned if a request
@@ -131,6 +134,12 @@ func (fb *Firebase) Value(v interface{}) error {
 	return fb.ValueC(nil, v)
 }
 
+// MustValue gets the value of the Firebase reference, if the node is missing,
+// return ErrValueMissing.
+func (fb *Firebase) MustValue(v interface{}) error {
+	return fb.MustValueC(nil, v)
+}
+
 // PushC creates a reference to an auto-generated child location with context.
 func (fb *Firebase) PushC(ctx context.Context, v interface{}) (*Firebase, error) {
 	bytes, err := json.Marshal(v)
@@ -185,6 +194,18 @@ func (fb *Firebase) ValueC(ctx context.Context, v interface{}) error {
 	bytes, err := fb.doRequest(ctx, "GET", nil)
 	if err != nil {
 		return err
+	}
+	return json.Unmarshal(bytes, v)
+}
+
+// MustValueC gets the value of the Firebase reference with context, and return
+// an ErrValueMissing if the node is not found.
+func (fb *Firebase) MustValueC(ctx context.Context, v interface{}) error {
+	bytes, err := fb.doRequest(ctx, "GET", nil)
+	if err != nil {
+		return err
+	} else if len(bytes) == 0 || string(bytes) == "null" {
+		return ErrValueMissing
 	}
 	return json.Unmarshal(bytes, v)
 }

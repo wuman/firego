@@ -43,6 +43,20 @@ firego.TimeoutDuration = time.Minute
 
 ### Auth Tokens
 
+Using Google's application default token source is recommended:
+
+```go
+import golang.org/x/oauth2/google
+
+ts, err := google.DefaultTokenSource(ctx, scope1, scope2, ...)
+if err != nil {
+    f.AccessToken(ts)
+}
+```
+
+If you wish to set the auth token directly, you will need to handle refreshing
+yourself:
+
 ```go
 f.Auth("some-token-that-was-created-for-me")
 f.Unauth()

@@ -15,12 +15,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
 )
 
 // TimeoutDuration is the length of time any request will have to establish
 // a connection and receive headers from Firebase before returning
 // an ErrTimeout error.
 var TimeoutDuration = 30 * time.Second
+
+// ErrValueMissing indicates the firebase node is not found used in MustValue.
+var ErrValueMissing = errors.New("firebase node missing")
 
 var defaultRedirectLimit = 30
 
@@ -32,6 +38,7 @@ type ErrTimeout struct {
 
 // query parameter constants
 const (
+	accessTokenParam  = "access_token"
 	authParam         = "auth"
 	shallowParam      = "shallow"
 	formatParam       = "format"
@@ -46,9 +53,10 @@ const (
 
 // Firebase represents a location in the cloud.
 type Firebase struct {
-	url    string
-	params _url.Values
-	client *http.Client
+	url      string
+	params   _url.Values
+	client   *http.Client
+	tokenSrc oauth2.TokenSource
 
 	watchMtx     sync.Mutex
 	watching     bool
@@ -85,6 +93,12 @@ func New(url string, client *http.Client) *Firebase {
 	}
 }
 
+// AccessToken sets the TokenSource, which is typically obtained via calling
+// google.DefaultTokenSource(ctx, scope...).
+func (fb *Firebase) AccessToken(tokenSource oauth2.TokenSource) {
+	fb.tokenSrc = tokenSource
+}
+
 // Auth sets the custom Firebase token used to authenticate to Firebase.
 func (fb *Firebase) Auth(token string) {
 	fb.params.Set(authParam, token)
@@ -97,11 +111,42 @@ func (fb *Firebase) Unauth() {
 
 // Push creates a reference to an auto-generated child location.
 func (fb *Firebase) Push(v interface{}) (*Firebase, error) {
+	return fb.PushC(nil, v)
+}
+
+// Remove the Firebase reference from the cloud.
+func (fb *Firebase) Remove() error {
+	return fb.RemoveC(nil)
+}
+
+// Set the value of the Firebase reference.
+func (fb *Firebase) Set(v interface{}) error {
+	return fb.SetC(nil, v)
+}
+
+// Update the specific child with the given value.
+func (fb *Firebase) Update(v interface{}) error {
+	return fb.UpdateC(nil, v)
+}
+
+// Value gets the value of the Firebase reference.
+func (fb *Firebase) Value(v interface{}) error {
+	return fb.ValueC(nil, v)
+}
+
+// MustValue gets the value of the Firebase reference, if the node is missing,
+// return ErrValueMissing.
+func (fb *Firebase) MustValue(v interface{}) error {
+	return fb.MustValueC(nil, v)
+}
+
+// PushC creates a reference to an auto-generated child location with context.
+func (fb *Firebase) PushC(ctx context.Context, v interface{}) (*Firebase, error) {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
-	bytes, err = fb.doRequest("POST", bytes)
+	bytes, err = fb.doRequest(ctx, "POST", bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -115,40 +160,52 @@ func (fb *Firebase) Push(v interface{}) (*Firebase, error) {
 	}, err
 }
 
-// Remove the Firebase reference from the cloud.
-func (fb *Firebase) Remove() error {
-	_, err := fb.doRequest("DELETE", nil)
+// RemoveC the Firebase reference from the cloud with context.
+func (fb *Firebase) RemoveC(ctx context.Context) error {
+	_, err := fb.doRequest(ctx, "DELETE", nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// Set the value of the Firebase reference.
-func (fb *Firebase) Set(v interface{}) error {
+// SetC the value of the Firebase reference with context.
+func (fb *Firebase) SetC(ctx context.Context, v interface{}) error {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = fb.doRequest("PUT", bytes)
+	_, err = fb.doRequest(ctx, "PUT", bytes)
 	return err
 }
 
-// Update the specific child with the given value.
-func (fb *Firebase) Update(v interface{}) error {
+// UpdateC the specific child with the given value with context.
+func (fb *Firebase) UpdateC(ctx context.Context, v interface{}) error {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = fb.doRequest("PATCH", bytes)
+	_, err = fb.doRequest(ctx, "PATCH", bytes)
 	return err
 }
 
-// Value gets the value of the Firebase reference.
-func (fb *Firebase) Value(v interface{}) error {
-	bytes, err := fb.doRequest("GET", nil)
+// ValueC gets the value of the Firebase reference with context.
+func (fb *Firebase) ValueC(ctx context.Context, v interface{}) error {
+	bytes, err := fb.doRequest(ctx, "GET", nil)
 	if err != nil {
 		return err
+	}
+	return json.Unmarshal(bytes, v)
+}
+
+// MustValueC gets the value of the Firebase reference with context, and return
+// an ErrValueMissing if the node is not found.
+func (fb *Firebase) MustValueC(ctx context.Context, v interface{}) error {
+	bytes, err := fb.doRequest(ctx, "GET", nil)
+	if err != nil {
+		return err
+	} else if len(bytes) == 0 || string(bytes) == "null" {
+		return ErrValueMissing
 	}
 	return json.Unmarshal(bytes, v)
 }
@@ -158,8 +215,15 @@ func (fb *Firebase) Value(v interface{}) error {
 func (fb *Firebase) String() string {
 	path := fb.url + "/.json"
 
-	if len(fb.params) > 0 {
-		path += "?" + fb.params.Encode()
+	paramsCopy, _ := _url.ParseQuery(fb.params.Encode())
+	if fb.tokenSrc != nil {
+		if token, err := fb.tokenSrc.Token(); err == nil && token != nil {
+			paramsCopy.Add(accessTokenParam, token.AccessToken)
+		}
+	}
+
+	if len(paramsCopy) > 0 {
+		path += "?" + paramsCopy.Encode()
 	}
 	return path
 }
@@ -178,6 +242,7 @@ func (fb *Firebase) copy() *Firebase {
 		params:       _url.Values{},
 		client:       fb.client,
 		stopWatching: make(chan struct{}),
+		tokenSrc:     fb.tokenSrc,
 	}
 
 	// making sure to manually copy the map items into a new
@@ -220,10 +285,13 @@ func redirectPreserveHeaders(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func (fb *Firebase) doRequest(method string, body []byte) ([]byte, error) {
+func (fb *Firebase) doRequest(ctx context.Context, method string, body []byte) ([]byte, error) {
 	req, err := http.NewRequest(method, fb.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
 	}
 
 	resp, err := fb.client.Do(req)
